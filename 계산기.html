@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>정산가 & TR 계산기</title>
+    <style>
+        body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f8fafc; padding: 20px; color: #334155; }
+        .calculator { max-width: 650px; margin: 0 auto; background: #ffffff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+        h2 { text-align: center; color: #0f172a; margin-bottom: 20px; font-size: 22px; }
+        
+        .section-title { font-size: 15px; font-weight: bold; color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px; margin-top: 15px; margin-bottom: 12px; }
+        
+        .form-group { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .form-group label { width: 55%; font-weight: 600; color: #475569; font-size: 14px; }
+        .form-group input { width: 40%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; text-align: right; font-size: 14px; }
+        .form-group input:focus { border-color: #2563eb; outline: none; }
+        
+        button { width: 100%; padding: 13px; background-color: #2563eb; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 15px; transition: background 0.2s; }
+        button:hover { background-color: #1d4ed8; }
+
+        .result-box { margin-top: 20px; padding: 18px; background: #f1f5f9; border-radius: 8px; border-left: 5px solid #2563eb; }
+        .result-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; color: #334155; }
+        
+        /* GFVF, NFVF, TR 강조 */
+        .metrics-box { background-color: #ecfdf5; padding: 12px 15px; border-radius: 6px; border-left: 5px solid #10b981; margin: 12px 0; }
+        .metrics-row { display: flex; justify-content: space-between; font-size: 15px; font-weight: bold; color: #065f46; margin-bottom: 6px; }
+        .metrics-row:last-child { margin-bottom: 0; }
+
+        /* 최종 정산가 */
+        .result-row.total { font-size: 18px; font-weight: bold; color: #dc2626; border-top: 1px dashed #cbd5e1; padding-top: 10px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="calculator">
+    <h2>행사 정산가 & TR 계산기</h2>
+    
+    <div class="section-title">1. 기본 가격 및 수수료 설정</div>
+    <div class="form-group"><label>등재가 (원)</label><input type="number" id="price" value="95000" oninput="autoCalcAdjFee()"></div>
+    <div class="form-group"><label>판매자 할인 (원)</label><input type="number" id="sellerDiscount" value="73800" oninput="autoCalcAdjFee()"></div>
+    <div class="form-group"><label>기본 수수료율 (%)</label><input type="number" step="0.01" id="feeRate" value="13" oninput="autoCalcAdjFee()"></div>
+    <div class="form-group"><label>조정 수수료율 (%)</label><input type="number" step="0.01" id="adjFeeRate" value="3.87"></div>
+    
+    <div class="section-title">2. 쿠폰 및 행사 설정</div>
+    <div class="form-group"><label>B1 쿠폰율 (%)</label><input type="number" step="0.1" id="b1Rate" value="20"></div>
+    <div class="form-group"><label>B1 셀러 분담율 (%)</label><input type="number" step="0.1" id="b1Share" value="54"></div>
+    
+    <div class="form-group"><label>B2 쿠폰율 (%)</label><input type="number" step="0.1" id="b2Rate" value="4"></div>
+    <div class="form-group"><label>B2 셀러 분담율 (%)</label><input type="number" step="0.1" id="b2Share" value="0"></div>
+    
+    <div class="form-group"><label>판매자 쿠폰율 (%)</label><input type="number" step="0.1" id="sellerCouponRate" value="0"></div>
+    <div class="form-group"><label>프로모션 참여 수수료율 (%)</label><input type="number" step="0.1" id="promoFeeRate" value="2"></div>
+
+    <button onclick="calculate()">정산가 및 지표 계산하기</button>
+
+    <div class="result-box">
+        <div class="result-row"><span>판매자 할인가 (영업GMV):</span><span id="discountedPrice">0 원</span></div>
+        <div class="result-row" style="font-weight:bold; color:#2563eb;"><span>수수료 정액 (등재가 × 조정수수료율):</span><span id="feeAmount">0 원</span></div>
+        <div class="result-row"><span>B1 셀러 부담금:</span><span id="b1SellerAmt">0 원</span></div>
+        <div class="result-row"><span>B2 셀러 부담금:</span><span id="b2SellerAmt">0 원</span></div>
+        <div class="result-row"><span>판매자쿠폰 사용금액:</span><span id="sellerCouponAmt">0 원</span></div>
+        <div class="result-row"><span>프로모션 참여 수수료:</span><span id="promoFeeAmt">0 원</span></div>
+        <div class="result-row" style="border-top: 1px solid #cbd5e1; padding-top: 8px; margin-top: 8px;">
+            <span>소비자 구매가:</span><span id="consumerPrice" style="color:#2563eb; font-weight:bold;">0 원</span>
+        </div>
+
+        <!-- GFVF / NFVF / TR 지표 영역 -->
+        <div class="metrics-box">
+            <div class="metrics-row"><span>GFVF (수수료 정액):</span><span id="gfvf">0 원</span></div>
+            <div class="metrics-row" style="font-size:13px; font-weight:normal; color:#047857;"><span>└ G마켓 부담 쿠폰지원금:</span><span id="platformSubsidy">0 원</span></div>
+            <div class="metrics-row"><span>NFVF (순 수수료):</span><span id="nfvf">0 원</span></div>
+            <div class="metrics-row" style="font-size: 16px; color: #047857;"><span>TR (실수수료율):</span><span id="trRate">0.00 %</span></div>
+        </div>
+
+        <!-- 최종 정산가 -->
+        <div class="result-row total"><span>최종 정산가:</span><span id="settlementPrice">0 원</span></div>
+    </div>
+</div>
+
+<script>
+function roundDown10(val) {
+    return Math.floor(val / 10) * 10;
+}
+
+// 등재가/할인가 변경 시 조정 수수료율 자동 추천 계산
+function autoCalcAdjFee() {
+    const price = parseFloat(document.getElementById('price').value) || 0;
+    const sellerDiscount = parseFloat(document.getElementById('sellerDiscount').value) || 0;
+    const feeRate = (parseFloat(document.getElementById('feeRate').value) || 0) / 100;
+
+    const discountedPrice = price - sellerDiscount;
+    if (price > 0 && discountedPrice > 0) {
+        const autoAdj = (discountedPrice * feeRate) / price * 100;
+        // 직접 수정한 적이 없는 경우 자동 업댓
+        // document.getElementById('adjFeeRate').value = autoAdj.toFixed(2);
+    }
+}
+
+function calculate() {
+    const price = parseFloat(document.getElementById('price').value) || 0;
+    const sellerDiscount = parseFloat(document.getElementById('sellerDiscount').value) || 0;
+    const feeRate = (parseFloat(document.getElementById('feeRate').value) || 0) / 100;
+    const adjFeeRate = (parseFloat(document.getElementById('adjFeeRate').value) || 0) / 100;
+    
+    const b1Rate = (parseFloat(document.getElementById('b1Rate').value) || 0) / 100;
+    const b1Share = (parseFloat(document.getElementById('b1Share').value) || 0) / 100;
+    
+    const b2Rate = (parseFloat(document.getElementById('b2Rate').value) || 0) / 100;
+    const b2Share = (parseFloat(document.getElementById('b2Share').value) || 0) / 100;
+    
+    const sellerCouponRate = (parseFloat(document.getElementById('sellerCouponRate').value) || 0) / 100;
+    const promoFeeRate = (parseFloat(document.getElementById('promoFeeRate').value) || 0) / 100;
+
+    // 1. 기본 가격 계산
+    const discountedPrice = price - sellerDiscount; // 판매자 할인가 (영업GMV)
+    const feeAmount = price * adjFeeRate;            // 수수료 정액 (등재가 * 조정 수수료율)
+
+    // B1 쿠폰
+    const b1CouponAmt = roundDown10(discountedPrice * b1Rate);
+    const b1SellerAmt = b1CouponAmt * b1Share;
+    const b1PlatformAmt = b1CouponAmt * (1 - b1Share); // G마켓 부담금
+
+    // B2 쿠폰
+    const b2CouponAmt = roundDown10(discountedPrice * b2Rate);
+    const b2SellerAmt = b2CouponAmt * b2Share;
+    const b2PlatformAmt = b2CouponAmt * (1 - b2Share); // G마켓 부담금
+
+    // 판매자 쿠폰 & 프로모션 수수료
+    const sellerCouponAmt = roundDown10(discountedPrice * sellerCouponRate);
+    const promoFeeAmt = (discountedPrice - sellerCouponAmt) * promoFeeRate;
+
+    // 소비자 구매가 & 셀러 최종 정산가
+    const consumerPrice = discountedPrice - b1CouponAmt - b2CouponAmt - sellerCouponAmt;
+    const settlementPrice = discountedPrice - feeAmount - b1SellerAmt - b2SellerAmt - sellerCouponAmt - promoFeeAmt;
+
+    // 2. GFVF, NFVF, TR 정밀 계산 (G마켓 관점)
+    const gfvf = feeAmount; // GFVF (수수료 정액)
+    const platformSubsidy = b1PlatformAmt + b2PlatformAmt; // G마켓이 실제로 부담한 쿠폰 할인 총액
+    
+    // NFVF (G마켓 순수수료) = GFVF + 프로모션수수료 - G마켓 부담 쿠폰지원금
+    const nfvf = gfvf + promoFeeAmt - platformSubsidy;
+    
+    // TR (실수수료율) = NFVF / 영업GMV
+    const trRate = discountedPrice > 0 ? (nfvf / discountedPrice) * 100 : 0;
+
+    // 3. 화면 출력
+    document.getElementById('discountedPrice').innerText = discountedPrice.toLocaleString() + ' 원';
+    document.getElementById('feeAmount').innerText = feeAmount.toLocaleString(undefined, {maximumFractionDigits:1}) + ' 원';
+    document.getElementById('b1SellerAmt').innerText = b1SellerAmt.toLocaleString(undefined, {maximumFractionDigits:1}) + ' 원';
+    document.getElementById('b2SellerAmt').innerText = b2SellerAmt.toLocaleString(undefined, {maximumFractionDigits:1}) + ' 원';
+    document.getElementById('sellerCouponAmt').innerText = sellerCouponAmt.toLocaleString(undefined, {maximumFractionDigits:1}) + ' 원';
+    document.getElementById('promoFeeAmt').innerText = promoFeeAmt.toLocaleString(undefined, {maximumFractionDigits:1}) + ' 원';
+    document.getElementById('consumerPrice').innerText = consumerPrice.toLocaleString() + ' 원';
+
+    // 지표 출력
+    document.getElementById('gfvf').innerText = gfvf.toLocaleString(undefined, {maximumFractionDigits:1}) + ' 원';
+    document.getElementById('platformSubsidy').innerText = platformSubsidy.toLocaleString(undefined, {maximumFractionDigits:1}) + ' 원';
+    document.getElementById('nfvf').innerText = nfvf.toLocaleString(undefined, {maximumFractionDigits:1}) + ' 원';
+    document.getElementById('trRate').innerText = trRate.toFixed(2) + ' %';
+
+    // 최종 정산가 출력
+    document.getElementById('settlementPrice').innerText = settlementPrice.toLocaleString(undefined, {maximumFractionDigits:1}) + ' 원';
+}
+
+calculate();
+</script>
+
+</body>
+</html>
